@@ -1,4 +1,4 @@
-# Indonesia trade signals
+# indoecon: Indonesia trade signals
 
 A personal dashboard for reading Indonesian export and import data as market signals.
 It's the first module of a larger Indonesian economic dashboard (BKPM investment, macro panel

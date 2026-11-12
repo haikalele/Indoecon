@@ -75,3 +75,25 @@ def test_replace_year_idempotent(tmp_path):
     db.replace_year(con, "export", 2024, [row])
     db.replace_year(con, "export", 2024, [row, {**row, "month": 2}])
     assert con.execute("select count(*) from trade").fetchone()[0] == 2
+
+
+def test_get_json_retries_429_and_hides_key(monkeypatch):
+    import pytest
+    monkeypatch.setattr(bps_trade.time, "sleep", lambda s: None)
+
+    class R:
+        def __init__(self, code, body=None):
+            self.status_code, self.headers, self._b = code, {}, body
+        def json(self):
+            return self._b
+
+    class S:
+        def __init__(self, seq):
+            self.seq = list(seq)
+        def get(self, url, timeout):
+            return self.seq.pop(0)
+
+    assert bps_trade._get_json(S([R(429), R(429), R(200, {"data": []})]), "u/SECRET/", "SECRET") == {"data": []}
+    with pytest.raises(bps_trade.BPSError) as e:
+        bps_trade._get_json(S([R(429)] * 3), "u/key/SECRET/", "SECRET", retries=3)
+    assert "SECRET" not in str(e.value) and "<KEY>" in str(e.value)

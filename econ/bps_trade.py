@@ -64,8 +64,41 @@ def build_url(flow: str, hs_code: str, year: int, key: str, monthly: bool = True
     )
 
 
-def fetch_one(flow: str, hs_code: str, year: int, key: str, session: requests.Session,
-              retries: int = 4) -> dict:
+class BPSError(RuntimeError):
+    pass
+
+
+def _get_json(session: requests.Session, url: str, key: str, retries: int = 8) -> dict:
+    """GET with backoff. BPS returns 429 when called too fast; wait and retry.
+    Error messages never include the API key."""
+    safe = url.replace(key, "<KEY>")
+    wait = 5.0
+    for attempt in range(retries):
+        try:
+            resp = session.get(url, timeout=60)
+        except requests.RequestException as e:
+            err = f"network error: {type(e).__name__}"
+        else:
+            if resp.status_code == 429 or resp.status_code >= 500:
+                ra = resp.headers.get("Retry-After", "")
+                delay = float(ra) if ra.isdigit() else wait
+                err = f"HTTP {resp.status_code}"
+                print(f"  {err}, waiting {delay:.0f}s (attempt {attempt + 1}/{retries})", flush=True)
+                time.sleep(delay)
+                wait = min(wait * 2, 120)
+                continue
+            if resp.status_code >= 400:
+                raise BPSError(f"HTTP {resp.status_code} for {safe}")
+            try:
+                return resp.json()
+            except ValueError:
+                err = "response was not JSON"
+        time.sleep(wait)
+        wait = min(wait * 2, 120)
+    raise BPSError(f"gave up after {retries} attempts ({err}) for {safe}")
+
+
+def fetch_one(flow: str, hs_code: str, year: int, key: str, session: requests.Session) -> dict:
     """Fetch one flow/HS/year, following pagination. Returns {'records': [...]}."""
     records: list[dict] = []
     page = 1
@@ -73,16 +106,7 @@ def fetch_one(flow: str, hs_code: str, year: int, key: str, session: requests.Se
         url = build_url(flow, hs_code, year, key)
         if page > 1:
             url += f"?page={page}"
-        for attempt in range(retries):
-            try:
-                resp = session.get(url, timeout=60)
-                resp.raise_for_status()
-                payload = resp.json()
-                break
-            except (requests.RequestException, ValueError):
-                if attempt == retries - 1:
-                    raise
-                time.sleep(2 ** attempt)
+        payload = _get_json(session, url, key)
         recs, total_pages = _extract_page(payload)
         records.extend(recs)
         if page >= total_pages:
@@ -110,19 +134,25 @@ def raw_path(flow: str, hs_code: str, year: int) -> Path:
 
 
 def download(flows: Iterable[str], years: Iterable[int], chapters: Iterable[str] = HS2_CHAPTERS,
-             force: bool = False, pause: float = 0.3) -> Iterator[Path]:
+             force: bool = False, pause: float = 1.5) -> Iterator[Path]:
+    """Download raw files, skipping ones already on disk, so an interrupted run
+    can simply be started again and it carries on where it stopped."""
     key = api_key()
     session = requests.Session()
     for flow in flows:
         for year in years:
-            for hs in chapters:
+            chapters = list(chapters)
+            for i, hs in enumerate(chapters, 1):
                 path = raw_path(flow, hs, year)
                 if path.exists() and not force:
                     yield path
                     continue
+                print(f"{flow} {year} HS{hs} ({i}/{len(chapters)})", flush=True)
                 path.parent.mkdir(parents=True, exist_ok=True)
                 result = fetch_one(flow, hs, year, key, session)
-                path.write_text(json.dumps(result, ensure_ascii=False))
+                tmp = path.with_suffix(".tmp")
+                tmp.write_text(json.dumps(result, ensure_ascii=False))
+                tmp.replace(path)
                 time.sleep(pause)
                 yield path
 

@@ -70,7 +70,11 @@ def main() -> None:
         from . import demo
         demo.load_demo()
     else:
-        refresh(a.years, a.flows, a.force)
+        try:
+            refresh(a.years, a.flows, a.force)
+        except bps_trade.BPSError as e:
+            raise SystemExit(f"\nStopped: {e}\nFiles downloaded so far are kept. "
+                             "Wait a few minutes and run the same command again to continue.")
 
 
 if __name__ == "__main__":

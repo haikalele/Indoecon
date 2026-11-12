@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from pathlib import Path
 from typing import Iterable, Iterator
@@ -146,12 +147,22 @@ def _to_float(x) -> float | None:
         return None
 
 
+_BRACKET = re.compile(r"^\s*\[(\w+)\]\s*(.*)$")
+
+
+def _split_code(x) -> tuple[str, str | None]:
+    """BPS returns labels like "[27] Bahan bakar mineral" or "[01] Januari"."""
+    s = str(x or "").strip()
+    m = _BRACKET.match(s)
+    return (m.group(1), m.group(2).strip() or None) if m else (s, None)
+
+
 def _to_month(x) -> int | None:
     if x is None:
         return None
     if isinstance(x, (int, float)):
         return int(x)
-    s = str(x).strip().lower()
+    s = _split_code(x)[0].lower()
     if s.isdigit():
         return int(s)
     return MONTHS_ID.get(s)
@@ -165,14 +176,14 @@ def parse_records(records: list[dict], flow: str, default_year: int) -> list[dic
         month = _to_month(_pick(rec, "month"))
         if month is None or not 1 <= month <= 12:
             continue
-        hs = str(_pick(rec, "hs") or "").strip()
+        hs, hs_label = _split_code(_pick(rec, "hs"))
         out.append({
             "flow": flow,
             "year": int(_pick(rec, "year") or default_year),
             "month": month,
             "hs_code": hs,
             "hs2": hs[:2].zfill(2) if hs else None,
-            "hs_desc": _pick(rec, "hs_desc"),
+            "hs_desc": _pick(rec, "hs_desc") or hs_label,
             "port": (str(_pick(rec, "port") or "").strip().upper() or "UNKNOWN"),
             "country": (str(_pick(rec, "country") or "").strip().upper() or "UNKNOWN"),
             "value_usd": _to_float(_pick(rec, "value_usd")) or 0.0,

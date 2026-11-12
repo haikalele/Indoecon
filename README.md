@@ -61,9 +61,7 @@ whole, so re-running is safe.
 
 ## Known gaps, to verify with a live key
 
-* The BPS response field names for **value, net weight and month** aren't documented. The parser
-  tries the likely names (`FIELD_CANDIDATES` in `econ/bps_trade.py`). `--probe` prints the real
-  ones. If nothing parses, add the right names there.
+* Confirmed BPS fields (Nov 2026): `value`, `netweight`, `kodehs` ("[27] label"), `pod`, `ctr` (Indonesian names), `tahun`, `bulan` ("[01] Januari").
 * We don't know yet how far back port-level monthly data goes.
 
 ## Roadmap

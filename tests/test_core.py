@@ -16,6 +16,16 @@ def test_parse_records_handles_names_and_formats():
     assert r["value_usd"] == 1234.5 and r["netweight_kg"] == 1000.0
 
 
+def test_parse_real_bps_shape():
+    rec = {"jenishs": "hs2022", "value": 9809337.16, "netweight": 170281000,
+           "kodehs": "[27] Bahan bakar mineral", "pod": "ADANG BAY", "ctr": "Filipina",
+           "tahun": 2025, "bulan": "[01] Januari"}
+    r = bps_trade.parse_records([rec], "export", 2025)[0]
+    assert (r["month"], r["hs_code"], r["hs2"], r["hs_desc"]) == (1, "27", "27", "Bahan bakar mineral")
+    assert (r["port"], r["country"], r["value_usd"]) == ("ADANG BAY", "FILIPINA", 9809337.16)
+    assert groups.country_region("Filipina") == "ASEAN"
+
+
 def test_extract_page_paginated_and_flat():
     rows, pages = bps_trade._extract_page({"data": [{"page": 1, "pages": 3}, [{"a": 1}]]})
     assert rows == [{"a": 1}] and pages == 3

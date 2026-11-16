@@ -289,6 +289,33 @@ with tab_partner:
 
     ctry = st.selectbox(f"Look at one country", p.index.tolist())
     sub = fw[fw.country == ctry]
+
+    # Headline numbers for the chosen country
+    row = p.loc[ctry]
+    rank = p.index.get_loc(ctry) + 1
+    cm = f[(f.country == ctry) & (f.period <= month)]
+    m_now = cm[cm.period == month].value_usd.sum()
+    m_ago = cm[cm.period == month - pd.DateOffset(years=1)].value_usd.sum()
+    both = df[df.country == ctry]
+    def _bal(a, b):
+        w = both[(both.period >= a) & (both.period <= b)]
+        return w[w.flow == "export"].value_usd.sum() - w[w.flow == "import"].value_usd.sum()
+    bal_now, bal_before = _bal(last12_start, month), _bal(prev12_start, prev12_end)
+    h1, h2, h3, h4 = st.columns(4)
+    h1.metric("Last 12 months", fmt_usd(row["now"]),
+              (fmt_pct(row["growth"]) + " vs 12 months before") if pd.notna(row["growth"]) else None,
+              help=f"{flow_name} {'to' if flow == 'export' else 'from'} {ctry}, {last12_label}")
+    h2.metric(f"Share of {flow_name.lower()}", f"{row['share_now']:.1f}%",
+              fmt_pts(row["share_shift"]), help=f"#{rank} of {len(p)} partners")
+    h3.metric(f"{month:%b %Y}", fmt_usd(m_now),
+              (fmt_pct((m_now / m_ago - 1) * 100) + " YoY") if m_ago > 0 else None)
+    h4.metric("Trade balance, last 12 months", fmt_usd(bal_now),
+              fmt_usd(bal_now - bal_before) + " vs 12 months before",
+              help="Indonesia's exports to this country minus imports from it. Positive = surplus.")
+    pg = sub[sub.period >= last12_start].groupby("product_group")["value_usd"].sum().sort_values(ascending=False)
+    if not pg.empty:
+        st.markdown(f"#{rank} {partner_word} for Indonesian {flow_name.lower()}. Biggest product group: "
+                    f"**{pg.index[0]}** ({pg.iloc[0] / pg.sum() * 100:.0f}% of the last 12 months).")
     g = db.monthly_series(sub, by="product_group")
     topg = sub.groupby("product_group")["value_usd"].sum().sort_values(ascending=False)
     keep = topg.head(7).index.tolist()

@@ -1,50 +1,41 @@
 country,region
-CHINA,China
-TIONGKOK,China
-UNITED STATES,United States
-AMERIKA SERIKAT,United States
-JAPAN,Japan
-JEPANG,Japan
-INDIA,India
-SINGAPORE,ASEAN
-SINGAPURA,ASEAN
-MALAYSIA,ASEAN
-THAILAND,ASEAN
-VIETNAM,ASEAN
-PHILIPPINES,ASEAN
-FILIPINA,ASEAN
-MYANMAR,ASEAN
-CAMBODIA,ASEAN
-KAMBOJA,ASEAN
-LAOS,ASEAN
-BRUNEI DARUSSALAM,ASEAN
-SOUTH KOREA,South Korea
-KOREA SELATAN,South Korea
-TAIWAN,Taiwan
-HONG KONG,Hong Kong
-GERMANY,EU
-JERMAN,EU
-NETHERLANDS,EU
-BELANDA,EU
-ITALY,EU
-ITALIA,EU
-SPAIN,EU
-SPANYOL,EU
-FRANCE,EU
-PERANCIS,EU
-BELGIUM,EU
-BELGIA,EU
-AUSTRALIA,Australia
-SAUDI ARABIA,Middle East
-ARAB SAUDI,Middle East
-UNITED ARAB EMIRATES,Middle East
-UNI EMIRAT ARAB,Middle East
-KOREA REPUBLIK,South Korea
-REPUBLIK KOREA,South Korea
-HONGKONG,Hong Kong
-INGGRIS,Rest of world
-TURKI,Rest of world
-MESIR,Middle East
-UNI EMIRAT ARAB (UEA),Middle East
-POLANDIA,EU
-REPUBLIK CEKO,EU
+China,China
+United States,United States
+Japan,Japan
+India,India
+South Korea,South Korea
+Taiwan,Taiwan
+Hong Kong,Hong Kong
+Australia,Australia
+Singapore,ASEAN
+Malaysia,ASEAN
+Thailand,ASEAN
+Vietnam,ASEAN
+Philippines,ASEAN
+Myanmar,ASEAN
+Cambodia,ASEAN
+Laos,ASEAN
+Brunei,ASEAN
+Germany,EU
+Netherlands,EU
+Italy,EU
+Spain,EU
+France,EU
+Belgium,EU
+Poland,EU
+Czechia,EU
+Ireland,EU
+Austria,EU
+Sweden,EU
+Denmark,EU
+Finland,EU
+Portugal,EU
+Greece,EU
+Saudi Arabia,Middle East
+United Arab Emirates,Middle East
+Egypt,Middle East
+Kuwait,Middle East
+Qatar,Middle East
+Oman,Middle East
+Iraq,Middle East
+Jordan,Middle East

@@ -54,6 +54,10 @@ def test_groups():
     assert groups.port_province("KUALA NAMU INTERNATIONAL AIRPORT (U)") == "Sumatera Utara"
     assert groups.port_province("TOBELO") == "Unmapped"  # whole-word match, no "OBI" hit
     assert groups.country_region("Tiongkok") == "China"
+    assert groups.country_english("TIONGKOK") == "China"
+    assert groups.country_english("Amerika Serikat") == "United States"
+    assert groups.country_english("KOREA SELATAN") == "South Korea"
+    assert groups.country_english("ATLANTIS RAYA") == "Atlantis Raya"  # unknown -> title case
 
 
 def _df():

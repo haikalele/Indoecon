@@ -97,10 +97,25 @@ def port_province(port: str | None) -> str:
 
 
 @lru_cache
+def _country_names() -> dict[str, str]:
+    with open(REF_DIR / "country_names.csv", newline="") as f:
+        return {_norm(r["bps_name"]): r["english"].strip() for r in csv.DictReader(f)}
+
+
+def country_english(country: str | None) -> str:
+    """BPS uses Indonesian country names ("TIONGKOK"); return English ("China").
+    Names not in ref/country_names.csv come back title-cased so they still read cleanly."""
+    if not country:
+        return "Unknown"
+    return _country_names().get(_norm(country), str(country).strip().title())
+
+
+@lru_cache
 def _country_regions() -> dict[str, str]:
     with open(REF_DIR / "country_regions.csv", newline="") as f:
-        return {r["country"].strip().upper(): r["region"].strip() for r in csv.DictReader(f)}
+        return {r["country"].strip(): r["region"].strip() for r in csv.DictReader(f)}
 
 
 def country_region(country: str | None) -> str:
-    return _country_regions().get((country or "").upper(), "Rest of world")
+    """Takes an English name (see country_english)."""
+    return _country_regions().get(country_english(country), "Rest of world")

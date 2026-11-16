@@ -1,12 +1,13 @@
 """Indonesia trade dashboard (Streamlit).  Run:  python -m streamlit run app.py"""
 from __future__ import annotations
 
+import altair as alt
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from econ import db
+from econ import charts, db
 
 st.set_page_config(page_title="Indonesia trade signals", layout="wide")
 
@@ -52,30 +53,6 @@ def style(fig: go.Figure, height: int = 360, unified: bool = True) -> go.Figure:
                       plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
     fig.update_xaxes(showgrid=False, title=None, hoverformat="%b %Y")
     fig.update_yaxes(gridcolor=GRID, zeroline=False, title=None)
-    return fig
-
-
-def line_chart(data: pd.DataFrame, y: str, color: str | None, title: str, *,
-               colors: dict | None = None, order: list | None = None, height: int = 360) -> go.Figure:
-    """Line chart with readable hover text. `y` is either a USD column (shown as $B on the axis
-    and "$1.23B" on hover) or a percent column ending in "_pct"."""
-    d = data.dropna(subset=[y]).copy()
-    is_pct = y.endswith("_pct")
-    d["_y"] = d[y] if is_pct else d[y] / 1e9
-    d["_label"] = d[y].map(fmt_pct if is_pct else fmt_usd)
-    kw = dict(color_discrete_map=colors) if colors else dict(color_discrete_sequence=SERIES)
-    if order:
-        kw["category_orders"] = {color: order}
-    fig = px.line(d, x="period", y="_y", color=color, custom_data=["_label"], title=title, **kw)
-    fig.update_traces(line=dict(width=2), hovertemplate="%{customdata[0]}")
-    if not color:
-        fig.update_traces(name=title, hovertemplate="%{customdata[0]}<extra></extra>")
-    fig = style(fig, height)
-    if is_pct:
-        fig.update_yaxes(ticksuffix="%")
-        fig.add_hline(y=0, line_color="gray", line_width=1)
-    else:
-        fig.update_yaxes(tickprefix="$", ticksuffix="B")
     return fig
 
 
@@ -154,11 +131,13 @@ with tab_over:
     k4.metric(f"Balance YTD {month.year}", fmt_usd(ytd_bal))
 
     t = tot[tot.period > start]
-    st.plotly_chart(line_chart(t, "value_usd", "flow", "Monthly value", colors=FLOW_COLOR),
+    st.altair_chart(charts.line_focus(t, "value_usd", "flow", "Monthly value",
+                                      order=["Exports", "Imports"], colors=FLOW_COLOR),
                     use_container_width=True)
-    st.plotly_chart(line_chart(t, "roll3_yoy_pct", "flow",
-                               "Momentum: last 3 months vs same 3 months a year earlier",
-                               colors=FLOW_COLOR), use_container_width=True)
+    st.altair_chart(charts.line_focus(t, "roll3_yoy_pct", "flow",
+                                      "Momentum: last 3 months vs same 3 months a year earlier",
+                                      order=["Exports", "Imports"], colors=FLOW_COLOR,
+                                      value_title="3-month change"), use_container_width=True)
 
     comp = f[(f.period >= last12_start) & (f.period <= month)]
     comp = comp.groupby("product_group", as_index=False)["value_usd"].sum()
@@ -178,19 +157,14 @@ with tab_move:
         if m.empty:
             col.write("No comparison available for this month.")
             continue
-        r = m.iloc[::-1]
-        fig = go.Figure(go.Bar(
-            x=r.change_usd / 1e6, y=r[by], orientation="h",
-            marker_color=[SERIES[0] if v >= 0 else SERIES[1] for v in r.change_usd],
-            customdata=list(zip(r.change_usd.map(fmt_usd), r.this_month.map(fmt_usd),
-                                r.year_ago.map(fmt_usd), r.change_pct.map(fmt_pct))),
-            hovertemplate="<b>%{y}</b><br>Change: %{customdata[0]} (%{customdata[3]})<br>"
-                          f"{month:%b %Y}: " + "%{customdata[1]}<br>"
-                          f"{month - pd.DateOffset(years=1):%b %Y}: " + "%{customdata[2]}"
-                          "<extra></extra>"))
-        fig = style(fig, 380, unified=False)
-        fig.update_xaxes(tickprefix="$", ticksuffix="M")
-        col.plotly_chart(fig, use_container_width=True)
+        mm = m.assign(now_l=m.this_month.map(fmt_usd), ago_l=m.year_ago.map(fmt_usd),
+                      chg_l=m.change_usd.map(fmt_usd), pct_l=m.change_pct.map(fmt_pct))
+        col.altair_chart(charts.diverging_bars(mm, by, tooltip=[
+            alt.Tooltip(f"{by}:N", title=label), alt.Tooltip("chg_l:N", title="Change"),
+            alt.Tooltip("pct_l:N", title="Change %"),
+            alt.Tooltip("now_l:N", title=f"{month:%b %Y}"),
+            alt.Tooltip("ago_l:N", title=f"{month - pd.DateOffset(years=1):%b %Y}")]),
+            use_container_width=True)
         col.dataframe(pd.DataFrame({
             label: m[by],
             f"{month:%b %Y}": m.this_month.map(fmt_usd),
@@ -222,9 +196,9 @@ with tab_port:
                           default=top[:4], max_selections=8)
     if pick:
         order = [p for p in top if p in pick] + [p for p in pick if p not in top]
-        st.plotly_chart(line_chart(s[s[level].isin(pick)], "roll3", level,
-                                   "Value over the last 3 months (rolling total)", order=order),
-                        use_container_width=True)
+        st.altair_chart(charts.line_focus(s[s[level].isin(pick)], "roll3", level,
+                                          "Value over the last 3 months (rolling total)", order=order,
+                                          value_title="3-month value"), use_container_width=True)
     port_sel = st.selectbox(f"What moves through a {level}?", top or sorted(s[level].unique()))
     sub = f[(f[level] == port_sel) & (f.period >= last12_start) & (f.period <= month)]
     mix = sub.groupby(["product_group", "country"], as_index=False)["value_usd"].sum()
@@ -247,19 +221,18 @@ with tab_partner:
     st.markdown(f"**{flow_name} by {partner_word} country.** Comparing the latest 12 months "
                 f"(**{last12_label}**) with the 12 months before (**{prev12_label}**).")
 
-    top15 = p.head(15).iloc[::-1]
-    fig = go.Figure()
-    for col, name, color in (("before", prev12_label, OTHER), ("now", last12_label, SERIES[0])):
-        fig.add_bar(y=top15.index, x=top15[col] / 1e9, name=name, orientation="h", marker_color=color,
-                    customdata=list(zip(top15[col].map(fmt_usd), top15["share_now" if col == "now"
-                                        else "share_before"].map(lambda v: f"{v:.1f}%"))),
-                    hovertemplate="%{customdata[0]} · %{customdata[1]} of total<extra>" + name + "</extra>")
-    fig = style(fig, 520, unified=False)
-    fig.update_layout(barmode="group", bargap=0.25, bargroupgap=0.05,
-                      title=f"Top 15 partners: latest 12 months vs the 12 months before")
-    fig.update_xaxes(tickprefix="$", ticksuffix="B")
-    fig.update_layout(hovermode="y unified")
-    st.plotly_chart(fig, use_container_width=True)
+    top15 = p.head(15)
+    long = pd.concat([
+        pd.DataFrame({"country": top15.index, "period": last12_label, "value": top15["now"].values,
+                      "share": top15["share_now"].map(lambda v: f"{v:.1f}%").values}),
+        pd.DataFrame({"country": top15.index, "period": prev12_label, "value": top15["before"].values,
+                      "share": top15["share_before"].map(lambda v: f"{v:.1f}%").values}),
+    ])
+    st.altair_chart(charts.grouped_bars(
+        long, "country", "period", "value", "Top 15 partners: latest 12 months vs the 12 months before",
+        cat_order=list(top15.index), group_order=[last12_label, prev12_label],
+        colors={last12_label: charts.SERIES[0], prev12_label: charts.OTHER},
+        extra_tooltip=[alt.Tooltip("share:N", title="Share of total")]), use_container_width=True)
 
     st.dataframe(pd.DataFrame({
         f"Latest 12 months": p["now"].map(fmt_usd),
@@ -279,17 +252,10 @@ with tab_partner:
     keep = topg.head(7).index.tolist()
     g["group"] = g["product_group"].where(g["product_group"].isin(keep), "Other")
     g = g.groupby(["period", "group"], as_index=False)["value_usd"].sum()
-    g["_label"] = g["value_usd"].map(fmt_usd)
-    g["_y"] = g["value_usd"] / 1e9
-    fig = px.bar(g, x="period", y="_y", color="group", custom_data=["_label"],
-                 category_orders={"group": keep + ["Other"]},
-                 color_discrete_sequence=SERIES[:len(keep)] + [OTHER],
-                 title=f"{flow_name} {'to' if flow == 'export' else 'from'} {ctry}, by product group")
-    fig.update_traces(marker_line_width=0, hovertemplate="%{customdata[0]}")
-    fig = style(fig, 400)
-    fig.update_layout(bargap=0.15)
-    fig.update_yaxes(tickprefix="$", ticksuffix="B")
-    st.plotly_chart(fig, use_container_width=True)
+    st.altair_chart(charts.stacked_bars(
+        g.rename(columns={"group": "product_group"}), "product_group",
+        f"{flow_name} {'to' if flow == 'export' else 'from'} {ctry}, by product group",
+        order=keep + ["Other"]), use_container_width=True)
 
 # ---------- Import demand ----------
 with tab_demand:
@@ -306,9 +272,11 @@ with tab_demand:
         if u in snap.index:
             c.metric(u, fmt_usd(snap.loc[u, "value_usd"]),
                      fmt_pct(snap.loc[u, "roll3_yoy_pct"]) + " 3-month trend")
-    st.plotly_chart(line_chart(s[s.period > start], "roll3_yoy_pct", "import_use",
-                               "Momentum by end use: last 3 months vs a year earlier", order=order),
+    present = [u for u in order if u in set(s["import_use"])]
+    st.altair_chart(charts.line_focus(s[s.period > start], "roll3_yoy_pct", "import_use",
+                                      "Momentum by end use: last 3 months vs a year earlier",
+                                      order=present, value_title="3-month change"),
                     use_container_width=True)
-    st.plotly_chart(line_chart(s[s.period > start], "value_usd", "import_use",
-                               "Monthly imports by end use", order=order),
+    st.altair_chart(charts.line_focus(s[s.period > start], "value_usd", "import_use",
+                                      "Monthly imports by end use", order=present),
                     use_container_width=True)

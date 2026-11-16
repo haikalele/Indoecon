@@ -232,18 +232,17 @@ with tab_port:
             st.session_state[key] = max(0, min(st.session_state[key] + step, last))
 
         page = max(0, min(st.session_state[page_key], n_pages - 1))
-        b1, b2, b3 = st.columns([1, 2, 1])
-        b1.button("◀ Previous 10", disabled=page == 0, key="dest_prev", use_container_width=True,
-                  on_click=_turn, args=(-1,))
-        b3.button("Next 10 ▶", disabled=page >= n_pages - 1, key="dest_next", use_container_width=True,
-                  on_click=_turn, args=(1,))
         countries = list(c_tot.index[page * 10:(page + 1) * 10])
-        b2.markdown(f"<div style='text-align:center;padding-top:6px'>Countries {page * 10 + 1}–"
-                    f"{page * 10 + len(countries)} of {len(c_tot)}</div>", unsafe_allow_html=True)
-        st.plotly_chart(treemap(dsub[dsub.country.isin(countries)], ["country", "product_group"],
-                                f"{partner_word.capitalize()} countries ranked {page * 10 + 1}–"
-                                f"{page * 10 + len(countries)}, then product group, {last12_label}", height=520),
-                        use_container_width=True)
+        first, last_n = page * 10 + 1, page * 10 + len(countries)
+        left, mid, right = st.columns([0.045, 0.91, 0.045], vertical_alignment="center", gap="small")
+        left.button("◀", disabled=page == 0, key="dest_prev", help="Previous 10 countries",
+                    on_click=_turn, args=(-1,))
+        right.button("▶", disabled=page >= n_pages - 1, key="dest_next", help="Next 10 countries",
+                     on_click=_turn, args=(1,))
+        mid.plotly_chart(treemap(dsub[dsub.country.isin(countries)], ["country", "product_group"],
+                                 f"{partner_word.capitalize()} countries {first}–{last_n} of {len(c_tot)}, "
+                                 f"then product group, {last12_label}", height=520),
+                         use_container_width=True)
         st.caption("Box size = value over the last 12 months. Click a country to zoom into its products; "
                    "click the top bar to zoom back out.")
 

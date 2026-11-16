@@ -220,6 +220,26 @@ with tab_port:
                                 f"{port_sel}: product group, then {partner_word} country, {last12_label}"),
                         use_container_width=True)
 
+    st.markdown(f"**Where goods from {port_sel} go**" if flow == "export" else f"**Where goods into {port_sel} come from**")
+    show = st.radio("Countries to show", ["Top 10", "Top 20", "All"], horizontal=True, key="dest_n")
+    dsub = sub.groupby(["country", "product_group"], as_index=False)["value_usd"].sum()
+    if not dsub.empty:
+        c_tot = dsub.groupby("country")["value_usd"].sum().sort_values(ascending=False)
+        n = {"Top 10": 10, "Top 20": 20}.get(show, len(c_tot))
+        countries = list(c_tot.index[:n])
+        g_tot = dsub[dsub.country.isin(countries)].groupby("product_group")["value_usd"].sum().sort_values(ascending=False)
+        keep_g = list(g_tot.index[:7])
+        dsub = dsub[dsub.country.isin(countries)].assign(
+            product_group=lambda x: x.product_group.where(x.product_group.isin(keep_g), "Other"))
+        dsub = dsub.groupby(["country", "product_group"], as_index=False)["value_usd"].sum()
+        g_order = keep_g + (["Other"] if (dsub.product_group == "Other").any() else [])
+        chart = charts.destination_mix(dsub, f"{partner_word.capitalize()} countries by value, {last12_label}",
+                                       country_order=countries, group_order=g_order)
+        box = st.container(height=520) if len(countries) > 14 else st.container()
+        box.altair_chart(chart, use_container_width=True)
+        st.caption(f"Showing {len(countries)} of {len(c_tot)} countries. Each bar is split by product group; "
+                   "hover a segment for its value and share.")
+
 # ---------- Partners ----------
 with tab_partner:
     now = f[(f.period >= last12_start) & (f.period <= month)].groupby("country")["value_usd"].sum()

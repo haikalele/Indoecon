@@ -63,7 +63,9 @@ def line_focus(df: pd.DataFrame, y: str, color: str, title: str, *, order: list 
     lines = base.mark_line(interpolate="monotone").encode(
         opacity=alt.condition(focus, alt.value(1), alt.value(0.18), empty=True),
         strokeWidth=alt.condition(focus, alt.value(3), alt.value(2), empty=False))
-    dot = base.mark_circle(size=90, stroke="white", strokeWidth=2).transform_filter(near)
+    # Only the hovered point shows a dot; with no hover, every dot is hidden (empty=False).
+    dot = base.mark_circle(size=90, stroke="white", strokeWidth=2).encode(
+        opacity=alt.condition(near, alt.value(1), alt.value(0), empty=False))
     layers = [lines, hit, dot]
     if is_pct:
         zero = alt.Chart(pd.DataFrame({"z": [0]})).mark_rule(color="gray", opacity=.6).encode(y="z:Q")
@@ -158,4 +160,30 @@ def momentum_heatmap(df: pd.DataFrame, title: str, *, order: list, height: int |
         tooltip=[alt.Tooltip("product_group:N", title="Product group"),
                  alt.Tooltip("period:T", format="%b %Y", title="Month"),
                  alt.Tooltip("label:N", title="3-month change vs a year earlier")],
+    ).add_params(hov).properties(title=title, height=alt.Step(26))
+
+
+def destination_mix(df: pd.DataFrame, title: str, *, country_order: list, group_order: list) -> alt.Chart:
+    """One horizontal bar per partner country, split by product group (Bars "C" hover).
+    Expects columns country, product_group, value_usd."""
+    d = df.copy()
+    d["label"] = d["value_usd"].map(_usd)
+    tot = d.groupby("country")["value_usd"].transform("sum")
+    d["share"] = (d["value_usd"] / tot * 100).map(lambda v: f"{v:.0f}% of this country")
+    d["total"] = tot.map(_usd)
+    d["rank"] = d["product_group"].map({k: i for i, k in enumerate(group_order)})
+    hov = alt.selection_point(name="hov", on="pointerover", clear="pointerout")
+    colors = (SERIES[:len(group_order) - 1] + [OTHER]) if group_order[-1] == "Other" else SERIES[:len(group_order)]
+    return alt.Chart(d).mark_bar(strokeWidth=2).encode(
+        y=alt.Y("country:N", sort=country_order, axis=alt.Axis(title=None, labelLimit=160)),
+        x=alt.X("value_usd:Q", stack="zero", axis=alt.Axis(format="$.2~s", labelExpr="replace(datum.label, 'G', 'B')",
+                                                             title=None, orient="top", tickCount=6)),
+        color=alt.Color("product_group:N", sort=group_order, scale=alt.Scale(domain=group_order, range=colors),
+                        legend=alt.Legend(title=None, orient="top", labelLimit=220, columns=4)),
+        order=alt.Order("rank:Q"),
+        opacity=alt.condition(hov, alt.value(1), alt.value(0.35), empty=True),
+        stroke=alt.condition(hov, alt.value(OUTLINE), alt.value(None), empty=False),
+        tooltip=[alt.Tooltip("country:N", title="Country"), alt.Tooltip("product_group:N", title="Product group"),
+                 alt.Tooltip("label:N", title="Value"), alt.Tooltip("share:N", title="Share"),
+                 alt.Tooltip("total:N", title="Country total")],
     ).add_params(hov).properties(title=title, height=alt.Step(26))

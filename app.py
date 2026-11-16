@@ -1,4 +1,4 @@
-"""Indonesia trade dashboard (Streamlit).  Run:  streamlit run app.py"""
+"""Indonesia trade dashboard (Streamlit).  Run:  python -m streamlit run app.py"""
 from __future__ import annotations
 
 import pandas as pd

@@ -39,7 +39,7 @@ pip install -r requirements.txt
 cp .env.example .env        # then paste your BPS key
 python -m econ.fetch --probe              # check one live response and the field names
 python -m econ.fetch --years 2022 2023 2024 2025 2026
-streamlit run app.py
+python -m streamlit run app.py
 ```
 
 To get a key, register at https://webapi.bps.go.id and create an app. The key is free.

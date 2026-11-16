@@ -155,7 +155,7 @@ def momentum_heatmap(df: pd.DataFrame, title: str, *, order: list, height: int |
         y=alt.Y("product_group:N", sort=order, scale=alt.Scale(paddingInner=0.1),
                 axis=alt.Axis(title=None, labelLimit=200)),
         color=alt.Color("direction:N", scale=alt.Scale(domain=["Growing", "Shrinking"], range=[SERIES[0], "#d03a1c"]),
-                        legend=alt.Legend(title=None, orient="bottom")),
+                        legend=alt.Legend(title=None, orient="top", direction="horizontal")),
         opacity=alt.Opacity("strength:Q", scale=alt.Scale(domain=[0, 1], range=[0, 1]),
                             legend=None),
         stroke=alt.condition(hov, alt.value("#888888"), alt.value(None), empty=False),

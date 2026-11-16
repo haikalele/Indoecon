@@ -5,6 +5,7 @@ import altair as alt
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.colors import sample_colorscale
 import streamlit as st
 
 from econ import charts, db, groups
@@ -41,6 +42,10 @@ def fmt_pct(x) -> str:
     return "0.0%" if round(x, 1) == 0 else f"{x:+.1f}%"
 
 
+def _signed_usd(x) -> str:
+    return fmt_usd(x) if x is None or pd.isna(x) or x < 0 else "+" + fmt_usd(x)
+
+
 def fmt_pts(x) -> str:
     return "n/a" if x is None or pd.isna(x) else f"{x:+.1f} pts"
 
@@ -56,15 +61,28 @@ def style(fig: go.Figure, height: int = 360, unified: bool = True) -> go.Figure:
     return fig
 
 
-def treemap(data: pd.DataFrame, path: list[str], title: str, height: int = 420) -> go.Figure:
-    fig = px.treemap(data, path=path, values="value_usd", color="value_usd",
+def treemap(data: pd.DataFrame, path: list[str], title: str, height: int = 420,
+            root_label: str = "All") -> go.Figure:
+    """Plotly ignores root_color here and paints the root dark grey, so we add our own root
+    and colour every box explicitly, with the root transparent."""
+    d = data.assign(_root=root_label)
+    fig = px.treemap(d, path=["_root"] + path, values="value_usd", color="value_usd",
                      color_continuous_scale=BLUES, title=title)
-    fig.update_coloraxes(showscale=False)
-    labels = [fmt_usd(v) for v in fig.data[0].values]
-    fig.update_traces(customdata=[[l] for l in labels],
-                      texttemplate="%{label}<br>%{percentRoot:.1%}", root_color="rgba(0,0,0,0)",
+    tr = fig.data[0]
+    vals = [float(v) for v in tr.marker.colors]
+    kids = [v for i, v in zip(tr.ids, vals) if i != root_label]
+    lo, hi = (min(kids), max(kids)) if kids else (0, 1)
+    colors = ["rgba(0,0,0,0)" if i == root_label else
+              sample_colorscale(BLUES, [(v - lo) / ((hi - lo) or 1)])[0] for i, v in zip(tr.ids, vals)]
+    labels = [fmt_usd(v) for v in tr.values]
+    fig.update_traces(marker=dict(colors=colors, colorscale=None), pathbar=dict(visible=False),
+                      customdata=[[l] for l in labels],
+                      texttemplate="%{label}<br>%{percentRoot:.1%}",
                       hovertemplate="<b>%{label}</b><br>%{customdata[0]}<br>"
                                     "%{percentRoot:.1%} of total<extra></extra>")
+    if len(path) == 1:   # flat treemap: no header band for the root at all
+        fig.update_traces(marker_pad=dict(t=0, l=0, r=0, b=0))
+    fig.update_coloraxes(showscale=False)
     return style(fig, height, unified=False)
 
 
@@ -145,10 +163,32 @@ with tab_over:
     k1, k2, k3, k4 = st.columns(4)
     k1.metric(f"Exports{where}", fmt_usd(exp_v), fmt_pct(cur["yoy_pct"].get("Exports")) + " YoY")
     k2.metric(f"Imports{where}", fmt_usd(imp_v), fmt_pct(cur["yoy_pct"].get("Imports")) + " YoY")
-    k3.metric("Trade balance", fmt_usd(exp_v - imp_v))
-    ytd = dfr[(dfr.period.dt.year == month.year) & (dfr.period <= month)]
-    ytd_bal = ytd[ytd.flow == "export"].value_usd.sum() - ytd[ytd.flow == "import"].value_usd.sum()
-    k4.metric(f"Balance YTD {month.year}", fmt_usd(ytd_bal))
+    def _bal(w):
+        return w[w.flow == "export"].value_usd.sum() - w[w.flow == "import"].value_usd.sum()
+    ago = month - pd.DateOffset(years=1)
+    bal, bal_ago = _bal(dfr[dfr.period == month]), _bal(dfr[dfr.period == ago])
+    k3.metric("Trade balance", fmt_usd(bal), _signed_usd(bal - bal_ago) + f" vs {ago:%b %Y}",
+              help=f"Exports minus imports. {ago:%b %Y}: {fmt_usd(bal_ago)}")
+    ytd_bal = _bal(dfr[(dfr.period.dt.year == month.year) & (dfr.period <= month)])
+    ytd_ago = _bal(dfr[(dfr.period.dt.year == ago.year) & (dfr.period <= ago)])
+    k4.metric(f"Balance YTD {month.year}", fmt_usd(ytd_bal),
+              _signed_usd(ytd_bal - ytd_ago) + f" vs Jan–{ago:%b %Y}",
+              help=f"Jan–{ago:%b %Y}: {fmt_usd(ytd_ago)}")
+
+    # One-line "what happened" for the selected flow
+    mv = db.movers(fr, "product_group", month, min_base_usd=0, top=1000)
+    if not mv.empty and mv.year_ago.sum() > 0:
+        now_t, ago_t = mv.this_month.sum(), mv.year_ago.sum()
+        ups = mv[mv.change_usd > 0].nlargest(2, "change_usd")
+        downs = mv[mv.change_usd < 0].nsmallest(1, "change_usd")
+        fmt_mv = lambda m: ", ".join(f"{r.product_group} ({_signed_usd(r.change_usd)})" for r in m.itertuples())
+        line = (f"**{flow_name}{where}** in {month:%b %Y}: **{fmt_usd(now_t)}**, "
+                f"**{fmt_pct((now_t / ago_t - 1) * 100)}** vs {ago:%b %Y} ({_signed_usd(now_t - ago_t)}).")
+        if not ups.empty:
+            line += f" Biggest gains: {fmt_mv(ups)}."
+        if not downs.empty:
+            line += f" Biggest drag: {fmt_mv(downs)}."
+        st.info(line, icon="📌")
     if region != "Indonesia":
         nat = df[(df.period >= last12_start) & (df.period <= month)].groupby("flow")["value_usd"].sum()
         reg = dfr[(dfr.period >= last12_start) & (dfr.period <= month)].groupby("flow")["value_usd"].sum()
@@ -180,27 +220,49 @@ with tab_over:
                  "Blue = growing, orange = shrinking; stronger colour = bigger change "
                  "(empty = about flat, full colour = 25% or more).")
 
-    def breakdown():
+    def _trend_style(v):
+        """Same colours as the heatmap: blue growing, red-orange shrinking, stronger = bigger."""
+        if v is None or pd.isna(v):
+            return ""
+        a = min(abs(v) / 25 * (1.0 if v >= 0 else 1.4), 1) * 0.85
+        rgb = "42,120,214" if v >= 0 else "208,58,28"
+        txt = "color: white;" if a > 0.55 else ""
+        return f"background-color: rgba({rgb},{a:.2f}); {txt}"
+
+    def breakdown(draft: str):
         """Inside the chosen region: islands (for Indonesia), provinces (island) or ports (province)."""
         sname = {"island": "Island group", "province": "Province", "port": "Port"}[sub_col]
         ss = db.monthly_series(fwr, by=sub_col)
         l12 = fr[(fr.period >= last12_start) & (fr.period <= month)].groupby(sub_col)["value_usd"].sum()
+        l12 = l12.sort_values(ascending=False).head(12)
         snap = ss[ss.period == month].set_index(sub_col)
         tb = pd.DataFrame({"Last 12 months": l12.map(fmt_usd),
                            "Share": (l12 / max(l12.sum(), 1) * 100).map(lambda v: f"{v:.1f}%"),
-                           "3-month trend vs a year ago": snap["roll3_yoy_pct"].map(fmt_pct),
-                           "_s": l12}).sort_values("_s", ascending=False).drop(columns="_s").head(12)
+                           "3-month trend vs a year ago": snap["roll3_yoy_pct"].reindex(l12.index)})
+        cfg = {"3-month trend vs a year ago": st.column_config.NumberColumn(format="%+.1f%%")}
+        if draft.startswith("2"):
+            spark = (ss[ss.period >= last12_start].sort_values("period")
+                     .groupby(sub_col)["value_usd"].apply(lambda v: [x / 1e6 for x in v]))
+            tb.insert(1, "Monthly value, last 12 months", spark.reindex(l12.index))
+            cfg["Monthly value, last 12 months"] = st.column_config.LineChartColumn(width="medium")
         st.markdown(f"**{flow_name} by {sname.lower()}{where}** · {last12_label}")
-        st.dataframe(tb.rename_axis(sname), use_container_width=True)
+        styled = tb.rename_axis(sname).style.map(_trend_style, subset=["3-month trend vs a year ago"])
+        st.dataframe(styled, column_config=cfg, use_container_width=True)
 
     a1, a2 = st.columns(2)
     a1.altair_chart(value_chart(300), use_container_width=True)
     a2.altair_chart(momentum_chart(300), use_container_width=True)
+    other = "Imports" if flow == "export" else "Exports"
+    st.markdown(f"#### {flow_name} detail{where}")
+    st.caption(f"Everything below shows {flow_name.lower()} only. Switch to {other} with the Flow "
+               "buttons at the top.")
     b1, b2 = st.columns([2, 3])
     b1.plotly_chart(mix_chart(520), use_container_width=True)
     b2.altair_chart(heat_chart(), use_container_width=True)
     b2.caption(heat_note)
-    breakdown()
+    tdraft = st.radio("Table draft", ["1 · Coloured trend", "2 · Coloured trend + sparkline"],
+                      horizontal=True, key="tbl_draft")
+    breakdown(tdraft)
 
 # ---------- Movers ----------
 with tab_move:

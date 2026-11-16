@@ -33,6 +33,12 @@ needs a re-download.
 
 ## Setup
 
+**GitHub Codespaces (easiest):** open the repo, then Code → Codespaces → open or create one. The
+dashboard starts by itself and opens in a new tab (port 8501, labelled "Dashboard"). After the
+Codespace has been asleep, reopening it starts the dashboard again.
+
+**On your own computer:**
+
 ```bash
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt

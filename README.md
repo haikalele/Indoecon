@@ -87,6 +87,6 @@ tests/              pytest
 
 ## Validation log
 
-* Sep 2026 vs BPS release (2 Nov 2026): exports $27.59B matched exactly. Imports were $24.06B vs
-  BPS $24.23B (0.7% short) and the Jan to Sep balance was $11.76B vs $10.61B, so some imports were missing.
-  Suspected cause: HS chapters 98 and 99 weren't fetched. They are now included; re-check after a re-run.
+* Sep 2026 vs the BPS release of 2 Nov 2026: exports $27.59B, imports $24.23B, balance $3.36B and
+  Jan to Sep balance $10.61B all **match exactly**. This holds only after HS chapters 98 and 99 were added;
+  without them, imports came out about $170M a month short.

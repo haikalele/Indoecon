@@ -133,21 +133,24 @@ def stacked_bars(df: pd.DataFrame, color: str, title: str, *, order: list, heigh
 
 def momentum_heatmap(df: pd.DataFrame, title: str, *, order: list, height: int | None = None) -> alt.Chart:
     """Product group x month, coloured by the 3-month change vs a year earlier (roll3_yoy_pct).
-    Blue = growth, orange = decline, light grey = about flat. Colours are fixed (not theme
-    tokens) so the middle stays light in dark mode too."""
+    Same look as idea 3 in the style lab: orange (decline) to a neutral grey (flat) to blue
+    (growth), with small gaps between cells. The grey works on light and dark backgrounds."""
     d = df.dropna(subset=["roll3_yoy_pct"])[["period", "product_group", "roll3_yoy_pct"]].copy()
     d["label"] = d["roll3_yoy_pct"].map(_pct)
     hov = alt.selection_point(name="hov", on="pointerover", clear="pointerout")
-    return alt.Chart(d).mark_rect(cornerRadius=2, strokeWidth=2).encode(
-        x=alt.X("yearmonth(period):O", axis=alt.Axis(format="%b %y", title=None, labelAngle=0,
-                                                       labelOverlap="parity")),
-        y=alt.Y("product_group:N", sort=order, axis=alt.Axis(title=None, labelLimit=200)),
+    return alt.Chart(d).mark_rect(cornerRadius=2).encode(
+        x=alt.X("yearmonth(period):O", scale=alt.Scale(paddingInner=0.1),
+                axis=alt.Axis(format="%b %y", title=None, labelAngle=0, labelOverlap="parity")),
+        y=alt.Y("product_group:N", sort=order, scale=alt.Scale(paddingInner=0.1),
+                axis=alt.Axis(title=None, labelLimit=200)),
         color=alt.Color("roll3_yoy_pct:Q",
-                        scale=alt.Scale(domain=[-25, -10, 0, 10, 25], interpolate="rgb", clamp=True,
-                                        range=[NEG, "#f5b899", "#e4e6e8", "#9fc3ee", SERIES[0]]),
-                        legend=alt.Legend(title="Change vs a year earlier", orient="bottom", titleLimit=300,
-                                          format="+.0f", labelExpr="datum.label + '%'", gradientLength=220)),
+                        scale=alt.Scale(domain=[-25, 25], domainMid=0, clamp=True,
+                                        range=[NEG, "#dde1e6", SERIES[0]]),
+                        legend=alt.Legend(title="3-month change vs a year earlier", titleLimit=300,
+                                          orient="bottom", format="+.0f", labelExpr="datum.label + '%'",
+                                          gradientLength=180)),
         stroke=alt.condition(hov, alt.value(OUTLINE), alt.value(None), empty=False),
+        strokeWidth=alt.condition(hov, alt.value(2), alt.value(0), empty=False),
         tooltip=[alt.Tooltip("product_group:N", title="Product group"),
                  alt.Tooltip("period:T", format="%b %Y", title="Month"),
                  alt.Tooltip("label:N", title="3-month change vs a year earlier")],

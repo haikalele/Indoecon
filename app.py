@@ -144,6 +144,18 @@ with tab_over:
     st.plotly_chart(treemap(comp, ["product_group"], f"{flow_name} by product group, {last12_label}"),
                     use_container_width=True)
 
+    heat = db.monthly_series(fw, by="product_group")
+    heat = heat[heat.period > start]
+    by_size = (f[(f.period >= last12_start) & (f.period <= month)]
+               .groupby("product_group")["value_usd"].sum().sort_values(ascending=False))
+    heat_order = [g for g in by_size.index if by_size[g] > 0]
+    st.altair_chart(charts.momentum_heatmap(heat[heat.product_group.isin(heat_order)],
+                                            f"{flow_name} momentum by product group", order=heat_order),
+                    use_container_width=True)
+    st.caption("Each cell compares the latest 3 months with the same 3 months a year earlier, "
+               "which cancels out seasonal swings and smooths lumpy shipments. Blue = growing, "
+               "orange = shrinking, grey = about flat. Biggest product groups at the top.")
+
 # ---------- Movers ----------
 with tab_move:
     st.caption(f"{month:%B %Y} vs {month - pd.DateOffset(years=1):%B %Y}, ranked by change in USD. "

@@ -154,7 +154,8 @@ with tab_over:
                     use_container_width=True)
     st.caption("Each cell compares the latest 3 months with the same 3 months a year earlier, "
                "which cancels out seasonal swings and smooths lumpy shipments. Blue = growing, "
-               "orange = shrinking, grey = about flat. Biggest product groups at the top.")
+               "orange = shrinking; the stronger the colour, the bigger the change (empty = about "
+               "flat, full colour = 25% or more). Biggest product groups at the top.")
 
 # ---------- Movers ----------
 with tab_move:

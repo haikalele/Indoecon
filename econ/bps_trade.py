@@ -25,7 +25,7 @@ BASE_URL = "https://webapi.bps.go.id/v1/api/dataexim"
 RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
 
 FLOW_CODES = {"export": 1, "import": 2}
-HS2_CHAPTERS = [f"{i:02d}" for i in range(1, 98) if i != 77]  # chapter 77 is reserved
+HS2_CHAPTERS = [f"{i:02d}" for i in range(1, 100) if i != 77]  # 77 reserved; 98-99 national special codes
 
 FIELD_CANDIDATES = {
     "hs": ["kodehs", "hs", "kode_hs"],

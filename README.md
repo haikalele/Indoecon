@@ -19,7 +19,7 @@ Every view has the same filters: flow (export or import), reference month and ch
 
 Source: the BPS Web API `dataexim` endpoint. Each record is HS code × Indonesian port × partner
 country × month, with USD value and net weight. We pull every HS2 chapter for each year
-(about 96 requests per flow per year) and keep the raw JSON in `data/raw/`, so re-parsing never
+(about 98 requests per flow per year) and keep the raw JSON in `data/raw/`, so re-parsing never
 needs a re-download.
 
 * Exports are by **port of loading** and **destination country**. Imports are by
@@ -84,3 +84,9 @@ econ/demo.py        synthetic demo data
 ref/*.csv           editable mapping tables
 tests/              pytest
 ```
+
+## Validation log
+
+* Sep 2026 vs BPS release (2 Nov 2026): exports $27.59B matched exactly. Imports were $24.06B vs
+  BPS $24.23B (0.7% short) and the Jan to Sep balance was $11.76B vs $10.61B, so some imports were missing.
+  Suspected cause: HS chapters 98 and 99 weren't fetched. They are now included; re-check after a re-run.

@@ -136,14 +136,15 @@ tab_over, tab_move, tab_port, tab_partner, tab_demand = st.tabs(
 # ---------- Overview ----------
 with tab_over:
     present_prov = set(df.province)
-    region_opts = ["Indonesia"] + [g for g in groups.ISLAND_GROUPS if g in set(df.island)]
-    for g, provs in groups.ISLAND_GROUPS.items():
-        region_opts += [p for p in provs if p in present_prov]
+    region_opts = ["Indonesia"]
+    for g, provs in groups.ISLAND_GROUPS.items():   # each island group, then its provinces
+        if g in set(df.island):
+            region_opts += [g] + [p for p in provs if p in present_prov]
     r1, _ = st.columns([1, 1])
     region = r1.selectbox("Region", region_opts, key="ov_region",
                           format_func=lambda r: r if r == "Indonesia" or r in groups.ISLAND_GROUPS
-                          else f"    {r}  ({groups.province_island(r)})",
-                          help="Indonesia = whole country. Then island groups, then single provinces "
+                          else f"\u2003\u2003{r}",   # em spaces: an indent the browser keeps
+                          help="Indonesia = whole country. Each island group is followed by its provinces "
                                "(by port of loading / unloading).")
     if region == "Indonesia":
         dfr, sub_col = df, "island"

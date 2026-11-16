@@ -62,7 +62,7 @@ def treemap(data: pd.DataFrame, path: list[str], title: str, height: int = 420) 
     fig.update_coloraxes(showscale=False)
     labels = [fmt_usd(v) for v in fig.data[0].values]
     fig.update_traces(customdata=[[l] for l in labels],
-                      texttemplate="%{label}<br>%{percentRoot:.1%}",
+                      texttemplate="%{label}<br>%{percentRoot:.1%}", root_color="rgba(0,0,0,0)",
                       hovertemplate="<b>%{label}</b><br>%{customdata[0]}<br>"
                                     "%{percentRoot:.1%} of total<extra></extra>")
     return style(fig, height, unified=False)
@@ -221,24 +221,31 @@ with tab_port:
                         use_container_width=True)
 
     st.markdown(f"**Where goods from {port_sel} go**" if flow == "export" else f"**Where goods into {port_sel} come from**")
-    show = st.radio("Countries to show", ["Top 10", "Top 20", "All"], horizontal=True, key="dest_n")
     dsub = sub.groupby(["country", "product_group"], as_index=False)["value_usd"].sum()
     if not dsub.empty:
         c_tot = dsub.groupby("country")["value_usd"].sum().sort_values(ascending=False)
-        n = {"Top 10": 10, "Top 20": 20}.get(show, len(c_tot))
-        countries = list(c_tot.index[:n])
-        g_tot = dsub[dsub.country.isin(countries)].groupby("product_group")["value_usd"].sum().sort_values(ascending=False)
-        keep_g = list(g_tot.index[:7])
-        dsub = dsub[dsub.country.isin(countries)].assign(
-            product_group=lambda x: x.product_group.where(x.product_group.isin(keep_g), "Other"))
-        dsub = dsub.groupby(["country", "product_group"], as_index=False)["value_usd"].sum()
-        g_order = keep_g + (["Other"] if (dsub.product_group == "Other").any() else [])
-        chart = charts.destination_mix(dsub, f"{partner_word.capitalize()} countries by value, {last12_label}",
-                                       country_order=countries, group_order=g_order)
-        box = st.container(height=520) if len(countries) > 14 else st.container()
-        box.altair_chart(chart, use_container_width=True)
-        st.caption(f"Showing {len(countries)} of {len(c_tot)} countries. Each bar is split by product group; "
-                   "hover a segment for its value and share.")
+        n_pages = (len(c_tot) - 1) // 10 + 1
+        page_key = f"dest_page::{flow}::{level}::{port_sel}"   # new port/flow starts at page 1
+        st.session_state.setdefault(page_key, 0)
+
+        def _turn(step: int, key=page_key, last=n_pages - 1):
+            st.session_state[key] = max(0, min(st.session_state[key] + step, last))
+
+        page = max(0, min(st.session_state[page_key], n_pages - 1))
+        b1, b2, b3 = st.columns([1, 2, 1])
+        b1.button("◀ Previous 10", disabled=page == 0, key="dest_prev", use_container_width=True,
+                  on_click=_turn, args=(-1,))
+        b3.button("Next 10 ▶", disabled=page >= n_pages - 1, key="dest_next", use_container_width=True,
+                  on_click=_turn, args=(1,))
+        countries = list(c_tot.index[page * 10:(page + 1) * 10])
+        b2.markdown(f"<div style='text-align:center;padding-top:6px'>Countries {page * 10 + 1}–"
+                    f"{page * 10 + len(countries)} of {len(c_tot)}</div>", unsafe_allow_html=True)
+        st.plotly_chart(treemap(dsub[dsub.country.isin(countries)], ["country", "product_group"],
+                                f"{partner_word.capitalize()} countries ranked {page * 10 + 1}–"
+                                f"{page * 10 + len(countries)}, then product group, {last12_label}", height=520),
+                        use_container_width=True)
+        st.caption("Box size = value over the last 12 months. Click a country to zoom into its products; "
+                   "click the top bar to zoom back out.")
 
 # ---------- Partners ----------
 with tab_partner:

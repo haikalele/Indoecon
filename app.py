@@ -229,7 +229,7 @@ with tab_over:
         txt = "color: white;" if a > 0.55 else ""
         return f"background-color: rgba({rgb},{a:.2f}); {txt}"
 
-    def breakdown(draft: str):
+    def breakdown():
         """Inside the chosen region: islands (for Indonesia), provinces (island) or ports (province)."""
         sname = {"island": "Island group", "province": "Province", "port": "Port"}[sub_col]
         ss = db.monthly_series(fwr, by=sub_col)
@@ -240,11 +240,6 @@ with tab_over:
                            "Share": (l12 / max(l12.sum(), 1) * 100).map(lambda v: f"{v:.1f}%"),
                            "3-month trend vs a year ago": snap["roll3_yoy_pct"].reindex(l12.index)})
         cfg = {"3-month trend vs a year ago": st.column_config.NumberColumn(format="%+.1f%%")}
-        if draft.startswith("2"):
-            spark = (ss[ss.period >= last12_start].sort_values("period")
-                     .groupby(sub_col)["value_usd"].apply(lambda v: [x / 1e6 for x in v]))
-            tb.insert(1, "Monthly value, last 12 months", spark.reindex(l12.index))
-            cfg["Monthly value, last 12 months"] = st.column_config.LineChartColumn(width="medium")
         st.markdown(f"**{flow_name} by {sname.lower()}{where}** · {last12_label}")
         styled = tb.rename_axis(sname).style.map(_trend_style, subset=["3-month trend vs a year ago"])
         st.dataframe(styled, column_config=cfg, use_container_width=True)
@@ -260,9 +255,7 @@ with tab_over:
     b1.plotly_chart(mix_chart(520), use_container_width=True)
     b2.altair_chart(heat_chart(), use_container_width=True)
     b2.caption(heat_note)
-    tdraft = st.radio("Table draft", ["1 · Coloured trend", "2 · Coloured trend + sparkline"],
-                      horizontal=True, key="tbl_draft")
-    breakdown(tdraft)
+    breakdown()
 
 # ---------- Movers ----------
 with tab_move:

@@ -234,15 +234,18 @@ with tab_port:
         page = max(0, min(st.session_state[page_key], n_pages - 1))
         countries = list(c_tot.index[page * 10:(page + 1) * 10])
         first, last_n = page * 10 + 1, page * 10 + len(countries)
-        left, mid, right = st.columns([0.045, 0.91, 0.045], vertical_alignment="center", gap="small")
-        left.button("◀", disabled=page == 0, key="dest_prev", help="Previous 10 countries",
-                    on_click=_turn, args=(-1,))
-        right.button("▶", disabled=page >= n_pages - 1, key="dest_next", help="Next 10 countries",
-                     on_click=_turn, args=(1,))
-        mid.plotly_chart(treemap(dsub[dsub.country.isin(countries)], ["country", "product_group"],
-                                 f"{partner_word.capitalize()} countries {first}–{last_n} of {len(c_tot)}, "
-                                 f"then product group, {last12_label}", height=520),
-                         use_container_width=True)
+        head, nav = st.columns([0.78, 0.22], vertical_alignment="center")
+        head.markdown(f"**{partner_word.capitalize()} countries, then product group** · {last12_label}")
+        n1, n2, n3 = nav.columns([1, 2.2, 1], vertical_alignment="center", gap="small")
+        n1.button("◀", disabled=page == 0, key="dest_prev", help="Previous 10 countries",
+                  on_click=_turn, args=(-1,))
+        n2.markdown(f"<div style='text-align:center;font-size:0.9em;white-space:nowrap'>"
+                    f"{first}–{last_n} of {len(c_tot)}</div>", unsafe_allow_html=True)
+        n3.button("▶", disabled=page >= n_pages - 1, key="dest_next", help="Next 10 countries",
+                  on_click=_turn, args=(1,))
+        fig = treemap(dsub[dsub.country.isin(countries)], ["country", "product_group"], "", height=520)
+        fig.update_layout(margin=dict(l=0, r=0, t=4, b=0))
+        st.plotly_chart(fig, use_container_width=True)
         st.caption("Box size = value over the last 12 months. Click a country to zoom into its products; "
                    "click the top bar to zoom back out.")
 

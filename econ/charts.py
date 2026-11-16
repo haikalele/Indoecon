@@ -56,16 +56,18 @@ def line_focus(df: pd.DataFrame, y: str, color: str, title: str, *, order: list 
         color=alt.Color(f"{color}:N", scale=_scale(order, colors), sort=order,
                         legend=alt.Legend(title=None, orient="top", labelLimit=220)),
     )
-    hit = base.mark_point(opacity=0, size=300).encode(
+    # Invisible hover targets: opacity set in the encoding so no theme can override it.
+    hit = base.mark_circle(size=300).encode(
+        opacity=alt.value(0),
         tooltip=[alt.Tooltip(f"{color}:N", title=color.replace("_", " ").capitalize()),
                  alt.Tooltip("period:T", format="%b %Y", title="Month"),
                  alt.Tooltip("label:N", title=value_title)]).add_params(near, focus)
     lines = base.mark_line(interpolate="monotone").encode(
         opacity=alt.condition(focus, alt.value(1), alt.value(0.18), empty=True),
         strokeWidth=alt.condition(focus, alt.value(3), alt.value(2), empty=False))
-    # Only the hovered point shows a dot; with no hover, every dot is hidden (empty=False).
-    dot = base.mark_circle(size=90, stroke="white", strokeWidth=2).encode(
-        opacity=alt.condition(near, alt.value(1), alt.value(0), empty=False))
+    # The dot layer only gets the hovered row; at rest it has no data, so nothing can show.
+    dot = base.mark_circle(size=90, stroke="white", strokeWidth=2, opacity=1).transform_filter(
+        {"param": "near", "empty": False})
     layers = [lines, hit, dot]
     if is_pct:
         zero = alt.Chart(pd.DataFrame({"z": [0]})).mark_rule(color="gray", opacity=.6).encode(y="z:Q")

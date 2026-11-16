@@ -7,7 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from econ import charts, db
+from econ import charts, db, groups
 
 st.set_page_config(page_title="Indonesia trade signals", layout="wide")
 
@@ -117,45 +117,107 @@ tab_over, tab_move, tab_port, tab_partner, tab_demand = st.tabs(
 
 # ---------- Overview ----------
 with tab_over:
-    tot = db.monthly_series(df[df.period <= month], by="flow")
+    present_prov = set(df.province)
+    region_opts = ["Indonesia"] + [g for g in groups.ISLAND_GROUPS if g in set(df.island)]
+    for g, provs in groups.ISLAND_GROUPS.items():
+        region_opts += [p for p in provs if p in present_prov]
+    r1, r2 = st.columns([1, 1])
+    region = r1.selectbox("Region", region_opts, key="ov_region",
+                          format_func=lambda r: r if r == "Indonesia" or r in groups.ISLAND_GROUPS
+                          else f"    {r}  ({groups.province_island(r)})",
+                          help="Indonesia = whole country. Then island groups, then single provinces "
+                               "(by port of loading / unloading).")
+    layout = r2.radio("Layout draft", ["A · Stacked", "B · Two columns", "C · Signals first"],
+                      horizontal=True, key="ov_layout")
+    if region == "Indonesia":
+        dfr, sub_col = df, "island"
+    elif region in groups.ISLAND_GROUPS:
+        dfr, sub_col = df[df.island == region], "province"
+    else:
+        dfr, sub_col = df[df.province == region], "port"
+    fr = dfr[dfr.flow == flow]
+    fwr = fr[(fr.period > start) & (fr.period <= month)]
+    where = "" if region == "Indonesia" else f" · {region}"
+
+    tot = db.monthly_series(dfr[dfr.period <= month], by="flow")
     tot["flow"] = tot["flow"].map(FLOW_NAME)
     cur = tot[tot.period == month].set_index("flow")
     exp_v = cur["value_usd"].get("Exports", 0)
     imp_v = cur["value_usd"].get("Imports", 0)
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Exports", fmt_usd(exp_v), fmt_pct(cur["yoy_pct"].get("Exports")) + " YoY")
-    k2.metric("Imports", fmt_usd(imp_v), fmt_pct(cur["yoy_pct"].get("Imports")) + " YoY")
+    k1.metric(f"Exports{where}", fmt_usd(exp_v), fmt_pct(cur["yoy_pct"].get("Exports")) + " YoY")
+    k2.metric(f"Imports{where}", fmt_usd(imp_v), fmt_pct(cur["yoy_pct"].get("Imports")) + " YoY")
     k3.metric("Trade balance", fmt_usd(exp_v - imp_v))
-    ytd = df[(df.period.dt.year == month.year) & (df.period <= month)]
+    ytd = dfr[(dfr.period.dt.year == month.year) & (dfr.period <= month)]
     ytd_bal = ytd[ytd.flow == "export"].value_usd.sum() - ytd[ytd.flow == "import"].value_usd.sum()
     k4.metric(f"Balance YTD {month.year}", fmt_usd(ytd_bal))
+    if region != "Indonesia":
+        nat = df[(df.period >= last12_start) & (df.period <= month)].groupby("flow")["value_usd"].sum()
+        reg = dfr[(dfr.period >= last12_start) & (dfr.period <= month)].groupby("flow")["value_usd"].sum()
+        sh = lambda fl: reg.get(fl, 0) / nat.get(fl, 1) * 100
+        st.markdown(f"{region} handles **{sh('export'):.1f}%** of Indonesia's exports and "
+                    f"**{sh('import'):.1f}%** of its imports ({last12_label}).")
 
     t = tot[tot.period > start]
-    st.altair_chart(charts.line_focus(t, "value_usd", "flow", "Monthly value",
-                                      order=["Exports", "Imports"], colors=FLOW_COLOR),
-                    use_container_width=True)
-    st.altair_chart(charts.line_focus(t, "roll3_yoy_pct", "flow",
-                                      "Momentum: last 3 months vs same 3 months a year earlier",
-                                      order=["Exports", "Imports"], colors=FLOW_COLOR,
-                                      value_title="3-month change"), use_container_width=True)
-
-    comp = f[(f.period >= last12_start) & (f.period <= month)]
+    def value_chart(h=340):
+        return charts.line_focus(t, "value_usd", "flow", f"Monthly value{where}",
+                                 order=["Exports", "Imports"], colors=FLOW_COLOR, height=h)
+    def momentum_chart(h=340):
+        return charts.line_focus(t, "roll3_yoy_pct", "flow",
+                                 "Momentum: last 3 months vs same 3 months a year earlier",
+                                 order=["Exports", "Imports"], colors=FLOW_COLOR,
+                                 value_title="3-month change", height=h)
+    comp = fr[(fr.period >= last12_start) & (fr.period <= month)]
     comp = comp.groupby("product_group", as_index=False)["value_usd"].sum()
-    st.plotly_chart(treemap(comp, ["product_group"], f"{flow_name} by product group, {last12_label}"),
-                    use_container_width=True)
-
-    heat = db.monthly_series(fw, by="product_group")
+    def mix_chart(h=420):
+        return treemap(comp, ["product_group"], f"{flow_name} by product group, {last12_label}", height=h)
+    heat = db.monthly_series(fwr, by="product_group")
     heat = heat[heat.period > start]
-    by_size = (f[(f.period >= last12_start) & (f.period <= month)]
-               .groupby("product_group")["value_usd"].sum().sort_values(ascending=False))
+    by_size = comp.set_index("product_group")["value_usd"].sort_values(ascending=False)
     heat_order = [g for g in by_size.index if by_size[g] > 0]
-    st.altair_chart(charts.momentum_heatmap(heat[heat.product_group.isin(heat_order)],
-                                            f"{flow_name} momentum by product group", order=heat_order),
-                    use_container_width=True)
-    st.caption("Each cell compares the latest 3 months with the same 3 months a year earlier, "
-               "which cancels out seasonal swings and smooths lumpy shipments. Blue = growing, "
-               "orange = shrinking; the stronger the colour, the bigger the change (empty = about "
-               "flat, full colour = 25% or more). Biggest product groups at the top.")
+    def heat_chart():
+        return charts.momentum_heatmap(heat[heat.product_group.isin(heat_order)],
+                                       f"{flow_name} momentum by product group{where}", order=heat_order)
+    heat_note = ("Each cell compares the latest 3 months with the same 3 months a year earlier. "
+                 "Blue = growing, orange = shrinking; stronger colour = bigger change "
+                 "(empty = about flat, full colour = 25% or more).")
+
+    def breakdown():
+        """Inside the chosen region: islands (for Indonesia), provinces (island) or ports (province)."""
+        sname = {"island": "Island group", "province": "Province", "port": "Port"}[sub_col]
+        ss = db.monthly_series(fwr, by=sub_col)
+        l12 = fr[(fr.period >= last12_start) & (fr.period <= month)].groupby(sub_col)["value_usd"].sum()
+        snap = ss[ss.period == month].set_index(sub_col)
+        tb = pd.DataFrame({"Last 12 months": l12.map(fmt_usd),
+                           "Share": (l12 / max(l12.sum(), 1) * 100).map(lambda v: f"{v:.1f}%"),
+                           "3-month trend vs a year ago": snap["roll3_yoy_pct"].map(fmt_pct),
+                           "_s": l12}).sort_values("_s", ascending=False).drop(columns="_s").head(12)
+        st.markdown(f"**{flow_name} by {sname.lower()}{where}** · {last12_label}")
+        st.dataframe(tb.rename_axis(sname), use_container_width=True)
+
+    if layout.startswith("A"):
+        st.altair_chart(value_chart(), use_container_width=True)
+        st.altair_chart(momentum_chart(), use_container_width=True)
+        st.plotly_chart(mix_chart(), use_container_width=True)
+        st.altair_chart(heat_chart(), use_container_width=True)
+        st.caption(heat_note)
+    elif layout.startswith("B"):
+        a1, a2 = st.columns(2)
+        a1.altair_chart(value_chart(300), use_container_width=True)
+        a2.altair_chart(momentum_chart(300), use_container_width=True)
+        b1, b2 = st.columns([2, 3])
+        b1.plotly_chart(mix_chart(520), use_container_width=True)
+        b2.altair_chart(heat_chart(), use_container_width=True)
+        b2.caption(heat_note)
+        breakdown()
+    else:
+        st.altair_chart(heat_chart(), use_container_width=True)
+        st.caption(heat_note)
+        c1_, c2_ = st.columns([3, 2])
+        with c1_:
+            breakdown()
+        c2_.plotly_chart(mix_chart(460), use_container_width=True)
+        st.altair_chart(momentum_chart(260), use_container_width=True)
 
 # ---------- Movers ----------
 with tab_move:

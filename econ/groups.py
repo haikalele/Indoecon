@@ -119,3 +119,23 @@ def _country_regions() -> dict[str, str]:
 def country_region(country: str | None) -> str:
     """Takes an English name (see country_english)."""
     return _country_regions().get(country_english(country), "Rest of world")
+
+
+# Indonesian island groups, used for the Overview region filter.
+ISLAND_GROUPS = {
+    "Sumatra": ["Aceh", "Sumatera Utara", "Sumatera Barat", "Riau", "Kepulauan Riau", "Jambi",
+                "Sumatera Selatan", "Kepulauan Bangka Belitung", "Bengkulu", "Lampung"],
+    "Java": ["DKI Jakarta", "Banten", "Jawa Barat", "Jawa Tengah", "DI Yogyakarta", "Jawa Timur"],
+    "Kalimantan": ["Kalimantan Barat", "Kalimantan Tengah", "Kalimantan Selatan", "Kalimantan Timur",
+                   "Kalimantan Utara"],
+    "Sulawesi": ["Sulawesi Utara", "Gorontalo", "Sulawesi Tengah", "Sulawesi Barat", "Sulawesi Selatan",
+                 "Sulawesi Tenggara"],
+    "Bali & Nusa Tenggara": ["Bali", "Nusa Tenggara Barat", "Nusa Tenggara Timur"],
+    "Maluku & Papua": ["Maluku", "Maluku Utara", "Papua", "Papua Barat", "Papua Barat Daya", "Papua Tengah",
+                       "Papua Selatan", "Papua Pegunungan"],
+}
+_PROVINCE_ISLAND = {p: g for g, ps in ISLAND_GROUPS.items() for p in ps}
+
+
+def province_island(province: str | None) -> str:
+    return _PROVINCE_ISLAND.get(province or "", "Unmapped")

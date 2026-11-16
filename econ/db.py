@@ -74,6 +74,7 @@ def load_enriched(con) -> pd.DataFrame:
     df["product_group"] = df["hs2"].map(groups.product_group)
     df["import_use"] = df["hs2"].map(groups.import_use)
     df["province"] = df["port"].map(groups.port_province)
+    df["island"] = df["province"].map(groups.province_island)
     df["country"] = df["country"].map(groups.country_english)
     df["region"] = df["country"].map(groups.country_region)
     return df

@@ -121,14 +121,12 @@ with tab_over:
     region_opts = ["Indonesia"] + [g for g in groups.ISLAND_GROUPS if g in set(df.island)]
     for g, provs in groups.ISLAND_GROUPS.items():
         region_opts += [p for p in provs if p in present_prov]
-    r1, r2 = st.columns([1, 1])
+    r1, _ = st.columns([1, 1])
     region = r1.selectbox("Region", region_opts, key="ov_region",
                           format_func=lambda r: r if r == "Indonesia" or r in groups.ISLAND_GROUPS
                           else f"    {r}  ({groups.province_island(r)})",
                           help="Indonesia = whole country. Then island groups, then single provinces "
                                "(by port of loading / unloading).")
-    layout = r2.radio("Layout draft", ["A · Stacked", "B · Two columns", "C · Signals first"],
-                      horizontal=True, key="ov_layout")
     if region == "Indonesia":
         dfr, sub_col = df, "island"
     elif region in groups.ISLAND_GROUPS:
@@ -195,29 +193,14 @@ with tab_over:
         st.markdown(f"**{flow_name} by {sname.lower()}{where}** · {last12_label}")
         st.dataframe(tb.rename_axis(sname), use_container_width=True)
 
-    if layout.startswith("A"):
-        st.altair_chart(value_chart(), use_container_width=True)
-        st.altair_chart(momentum_chart(), use_container_width=True)
-        st.plotly_chart(mix_chart(), use_container_width=True)
-        st.altair_chart(heat_chart(), use_container_width=True)
-        st.caption(heat_note)
-    elif layout.startswith("B"):
-        a1, a2 = st.columns(2)
-        a1.altair_chart(value_chart(300), use_container_width=True)
-        a2.altair_chart(momentum_chart(300), use_container_width=True)
-        b1, b2 = st.columns([2, 3])
-        b1.plotly_chart(mix_chart(520), use_container_width=True)
-        b2.altair_chart(heat_chart(), use_container_width=True)
-        b2.caption(heat_note)
-        breakdown()
-    else:
-        st.altair_chart(heat_chart(), use_container_width=True)
-        st.caption(heat_note)
-        c1_, c2_ = st.columns([3, 2])
-        with c1_:
-            breakdown()
-        c2_.plotly_chart(mix_chart(460), use_container_width=True)
-        st.altair_chart(momentum_chart(260), use_container_width=True)
+    a1, a2 = st.columns(2)
+    a1.altair_chart(value_chart(300), use_container_width=True)
+    a2.altair_chart(momentum_chart(300), use_container_width=True)
+    b1, b2 = st.columns([2, 3])
+    b1.plotly_chart(mix_chart(520), use_container_width=True)
+    b2.altair_chart(heat_chart(), use_container_width=True)
+    b2.caption(heat_note)
+    breakdown()
 
 # ---------- Movers ----------
 with tab_move:

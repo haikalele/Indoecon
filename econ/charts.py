@@ -139,15 +139,19 @@ def momentum_heatmap(df: pd.DataFrame, title: str, *, order: list, height: int |
     d["label"] = d["roll3_yoy_pct"].map(_pct)
     d["direction"] = (d["roll3_yoy_pct"] >= 0).map({True: "Growing", False: "Shrinking"})
     d["size"] = d["roll3_yoy_pct"].abs().clip(upper=25)
+    # Orange reads weaker than blue on white, so declines get a deeper red-orange and a
+    # 1.4x opacity boost to look equally strong.
+    boost = d["direction"].map({"Growing": 1.0, "Shrinking": 1.4})
+    d["strength"] = (d["size"] / 25 * boost).clip(upper=1)
     hov = alt.selection_point(name="hov", on="pointerover", clear="pointerout")
     return alt.Chart(d).mark_rect(cornerRadius=2).encode(
         x=alt.X("yearmonth(period):O", scale=alt.Scale(paddingInner=0.1),
                 axis=alt.Axis(format="%b %y", title=None, labelAngle=0, labelOverlap="parity")),
         y=alt.Y("product_group:N", sort=order, scale=alt.Scale(paddingInner=0.1),
                 axis=alt.Axis(title=None, labelLimit=200)),
-        color=alt.Color("direction:N", scale=alt.Scale(domain=["Growing", "Shrinking"], range=[SERIES[0], NEG]),
+        color=alt.Color("direction:N", scale=alt.Scale(domain=["Growing", "Shrinking"], range=[SERIES[0], "#d03a1c"]),
                         legend=alt.Legend(title=None, orient="bottom")),
-        opacity=alt.Opacity("size:Q", scale=alt.Scale(domain=[0, 25], range=[0, 1]),
+        opacity=alt.Opacity("strength:Q", scale=alt.Scale(domain=[0, 1], range=[0, 1]),
                             legend=None),
         stroke=alt.condition(hov, alt.value("#888888"), alt.value(None), empty=False),
         strokeWidth=alt.condition(hov, alt.value(2), alt.value(0), empty=False),

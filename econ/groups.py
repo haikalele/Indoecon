@@ -8,6 +8,7 @@ codes); chapters 84/85/87 mix capital goods, parts and consumer items.
 from __future__ import annotations
 
 import csv
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -81,10 +82,16 @@ def _port_rules() -> list[tuple[str, str]]:
     return sorted(rows, key=lambda r: -len(r[0]))
 
 
+def _norm(text: str | None) -> str:
+    """Upper-case, punctuation to spaces, padded: "SOEKARNO-HATTA (U)" -> " SOEKARNO HATTA U "."""
+    return " " + re.sub(r"[^A-Z0-9]+", " ", (text or "").upper()).strip() + " "
+
+
 def port_province(port: str | None) -> str:
-    p = (port or "").upper()
+    """Match whole words only, so "OBI" doesn't match inside another name."""
+    p = _norm(port)
     for kw, prov in _port_rules():
-        if kw in p:
+        if _norm(kw) in p:
             return prov
     return "Unmapped"
 

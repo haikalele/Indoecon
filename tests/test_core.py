@@ -47,6 +47,12 @@ def test_groups():
     assert groups.port_province("SOEKARNO HATTA MAKASSAR") == "Sulawesi Selatan"
     assert groups.port_province("SOEKARNO HATTA") == "Banten"
     assert groups.port_province("NOWHERE") == "Unmapped"
+    assert groups.port_province("SOEKARNO-HATTA (U)") == "Banten"
+    assert groups.port_province("PADANG/TL.BAYUR") == "Sumatera Barat"
+    assert groups.port_province("BELAKANG PADANG") == "Kepulauan Riau"
+    assert groups.port_province("LINGKAS TARAKAN") == "Kalimantan Utara"
+    assert groups.port_province("KUALA NAMU INTERNATIONAL AIRPORT (U)") == "Sumatera Utara"
+    assert groups.port_province("TOBELO") == "Unmapped"  # whole-word match, no "OBI" hit
     assert groups.country_region("Tiongkok") == "China"
 
 

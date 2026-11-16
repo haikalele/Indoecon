@@ -299,6 +299,43 @@ with tab_partner:
         f"{flow_name} {'to' if flow == 'export' else 'from'} {ctry}, by product group",
         order=keep + ["Other"]), use_container_width=True)
 
+    # Which Indonesian provinces / ports trade with this country
+    split = st.radio(f"Split {flow_name.lower()} {'to' if flow == 'export' else 'from'} {ctry} by",
+                     ["Province", "Port"], horizontal=True, key="ctry_split")
+    lvl = split.lower()
+    c_now = f[(f.country == ctry) & (f.period >= last12_start) & (f.period <= month)]
+    c_before = f[(f.country == ctry) & (f.period >= prev12_start) & (f.period <= prev12_end)]
+    r = pd.DataFrame({"now": c_now.groupby(lvl)["value_usd"].sum(),
+                      "before": c_before.groupby(lvl)["value_usd"].sum()}).fillna(0)
+    r = r[(r["now"] > 0) | (r["before"] > 0)].sort_values("now", ascending=False)
+    if not r.empty:
+        keep_r = r.head(7).index.tolist()
+        gr = db.monthly_series(sub, by=lvl)
+        gr["grp"] = gr[lvl].where(gr[lvl].isin(keep_r), "Other")
+        gr = gr.groupby(["period", "grp"], as_index=False)["value_usd"].sum()
+        order_r = keep_r + (["Other"] if (gr["grp"] == "Other").any() else [])
+        st.altair_chart(charts.stacked_bars(
+            gr.rename(columns={"grp": lvl}), lvl,
+            f"{flow_name} {'to' if flow == 'export' else 'from'} {ctry}, by Indonesian "
+            f"{'province' if lvl == 'province' else port_word}",
+            order=order_r, tip_title=split), use_container_width=True)
+        r["growth"] = (r["now"] / r["before"].where(r["before"] > 0) - 1) * 100
+        r["share"] = r["now"] / max(r["now"].sum(), 1) * 100
+        st.dataframe(pd.DataFrame({
+            "Latest 12 months": r["now"].map(fmt_usd),
+            "12 months before": r["before"].map(fmt_usd),
+            "Growth": r["growth"].map(fmt_pct),
+            f"Share of {ctry}": r["share"].map(lambda v: f"{v:.1f}%"),
+        }).rename_axis(split), use_container_width=True)
+        pick_r = st.selectbox(f"What goes through one {lvl}", r.index.tolist(), key="ctry_split_pick")
+        mix_r = c_now[c_now[lvl] == pick_r].groupby("product_group", as_index=False)["value_usd"].sum()
+        if not mix_r.empty:
+            st.plotly_chart(treemap(mix_r, ["product_group"],
+                                    f"{pick_r} ↔ {ctry}: product groups, {last12_label}", height=380),
+                            use_container_width=True)
+        if lvl == "province" and "Unmapped" in r.index:
+            st.caption("'Unmapped' = ports not yet linked to a province in ref/ports_province.csv.")
+
 # ---------- Import demand ----------
 with tab_demand:
     st.caption("Imports split by end use. **Approximate:** mapped from HS chapters, so machinery "

@@ -113,7 +113,8 @@ def diverging_bars(df: pd.DataFrame, cat: str, *, tooltip: list, height: int = 3
     ).add_params(hov).properties(height=height)
 
 
-def stacked_bars(df: pd.DataFrame, color: str, title: str, *, order: list, height: int = 400) -> alt.Chart:
+def stacked_bars(df: pd.DataFrame, color: str, title: str, *, order: list, height: int = 400,
+                 tip_title: str = "Product group") -> alt.Chart:
     """Bars "C" for monthly stacked bars: the hovered segment is outlined, others fade."""
     d = df.copy()
     d["label"] = d["value_usd"].map(_usd)
@@ -129,7 +130,7 @@ def stacked_bars(df: pd.DataFrame, color: str, title: str, *, order: list, heigh
         order=alt.Order("rank:Q"),
         opacity=alt.condition(hov, alt.value(1), alt.value(0.35), empty=True),
         stroke=alt.condition(hov, alt.value(OUTLINE), alt.value(None), empty=False),
-        tooltip=[alt.Tooltip(f"{color}:N", title="Product group"),
+        tooltip=[alt.Tooltip(f"{color}:N", title=tip_title),
                  alt.Tooltip("period:T", format="%b %Y", title="Month"),
                  alt.Tooltip("label:N", title="Value")],
     ).add_params(hov).properties(title=title, height=height)

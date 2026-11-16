@@ -309,6 +309,9 @@ with tab_partner:
                       "before": c_before.groupby(lvl)["value_usd"].sum()}).fillna(0)
     r = r[(r["now"] > 0) | (r["before"] > 0)].sort_values("now", ascending=False)
     if not r.empty:
+        top3 = ", ".join(f"**{n}** ({v / max(r['now'].sum(), 1) * 100:.0f}%)" for n, v in r["now"].head(3).items())
+        st.markdown(f"Over the last 12 months, {flow_name.lower()} {'to' if flow == 'export' else 'from'} "
+                    f"{ctry} mainly go through {top3}.")
         keep_r = r.head(7).index.tolist()
         gr = db.monthly_series(sub, by=lvl)
         gr["grp"] = gr[lvl].where(gr[lvl].isin(keep_r), "Other")
@@ -327,12 +330,6 @@ with tab_partner:
             "Growth": r["growth"].map(fmt_pct),
             f"Share of {ctry}": r["share"].map(lambda v: f"{v:.1f}%"),
         }).rename_axis(split), use_container_width=True)
-        pick_r = st.selectbox(f"What goes through one {lvl}", r.index.tolist(), key="ctry_split_pick")
-        mix_r = c_now[c_now[lvl] == pick_r].groupby("product_group", as_index=False)["value_usd"].sum()
-        if not mix_r.empty:
-            st.plotly_chart(treemap(mix_r, ["product_group"],
-                                    f"{pick_r} ↔ {ctry}: product groups, {last12_label}", height=380),
-                            use_container_width=True)
         if lvl == "province" and "Unmapped" in r.index:
             st.caption("'Unmapped' = ports not yet linked to a province in ref/ports_province.csv.")
 
